@@ -24,6 +24,9 @@ suppressed or reactivated.
 - Nike Run-style shoe usage signals, frequency caps, channel preferences, and
   consent-aware Martech email decisions.
 - Simulated A/B experiment metrics and executive business impact estimates.
+- Dedicated A/B Testing Lab with hypothesis, population, randomization unit,
+  traffic allocation, sample assumptions, primary metric, guardrails, variants,
+  result readout, and launch checklist.
 - Sponsored product auction and portfolio metrics.
 - Responsible AI, privacy guardrails, reference architecture, and product pain
   points to discuss in interviews and roadmap conversations.

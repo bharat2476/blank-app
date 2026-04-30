@@ -47,11 +47,12 @@ if "users" not in st.session_state:
 # TABS
 # ---------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Member & Strategy",
     "Recommendations",
     "Marketing & Ads",
     "Portfolio Metrics",
+    "A/B Testing Lab",
     "Responsible AI"
 ])
 
@@ -307,6 +308,115 @@ with tab4:
     )
 
 with tab5:
+    st.header("A/B Testing Lab")
+
+    if "ranked_df" not in st.session_state:
+        st.info("Run the simulation and open Recommendations first.")
+    else:
+        ranked_df = st.session_state["ranked_df"]
+        user = st.session_state["user"]
+        config = st.session_state["config"]
+        users_df = st.session_state["users"]
+
+        st.subheader("Experiment Definition")
+        experiment_cols = st.columns(3)
+        with experiment_cols[0]:
+            hypothesis = st.text_area(
+                "Hypothesis",
+                "Lifecycle-aware, consent-filtered recommendations will increase revenue per session without increasing unsubscribes."
+            )
+            randomization_unit = st.selectbox(
+                "Randomization Unit",
+                ["Member", "Session", "Household", "Device"],
+                index=0
+            )
+            population = st.multiselect(
+                "Eligible Population",
+                sorted(users_df["lifecycle_stage"].unique()),
+                default=sorted(users_df["lifecycle_stage"].unique())
+            )
+        with experiment_cols[1]:
+            primary_metric = st.selectbox(
+                "Primary Success Metric",
+                ["Revenue per Session", "Conversion Rate", "CTR", "Incremental Margin"],
+                index=0
+            )
+            minimum_detectable_effect = st.slider(
+                "Minimum Detectable Effect",
+                1, 25, 8,
+                help="Smallest lift worth detecting for this demo experiment."
+            )
+            confidence_level = st.selectbox("Confidence Level", ["90%", "95%", "99%"], index=1)
+        with experiment_cols[2]:
+            traffic_allocation = st.slider("Traffic Allocated to Test", 10, 100, 50)
+            treatment_split = st.slider("Treatment Split Within Test", 10, 90, 50)
+            experiment_days = st.slider("Experiment Duration", 7, 56, 21)
+
+        eligible_users = users_df[users_df["lifecycle_stage"].isin(population)] if population else users_df.iloc[0:0]
+        daily_sessions = max(1, len(eligible_users) * 3)
+        total_test_sessions = int(daily_sessions * experiment_days * (traffic_allocation / 100))
+        treatment_sessions = int(total_test_sessions * (treatment_split / 100))
+        control_sessions = total_test_sessions - treatment_sessions
+
+        sizing_cols = st.columns(4)
+        sizing_cols[0].metric("Eligible Members", f"{len(eligible_users):,}")
+        sizing_cols[1].metric("Estimated Test Sessions", f"{total_test_sessions:,}")
+        sizing_cols[2].metric("Control Sessions", f"{control_sessions:,}")
+        sizing_cols[3].metric("Treatment Sessions", f"{treatment_sessions:,}")
+
+        st.subheader("Variant Design")
+        variants_df = pd.DataFrame([
+            {
+                "variant": "A: Control",
+                "ranking_logic": "Popularity, trend, and sale ribbons",
+                "signals_allowed": "Contextual catalog signals",
+                "martech_rule": "Standard shoe replenishment suppression",
+                "traffic_share": f"{100 - treatment_split}%"
+            },
+            {
+                "variant": "B: Treatment",
+                "ranking_logic": "Lifecycle-aware ranking with consent filter",
+                "signals_allowed": config["privacy_mode"],
+                "martech_rule": "Frequency cap + replenishment + channel preference",
+                "traffic_share": f"{treatment_split}%"
+            },
+        ])
+        st.dataframe(variants_df, use_container_width=True)
+
+        st.subheader("Metrics and Guardrails")
+        metrics_df = pd.DataFrame([
+            {"metric_type": "Primary", "metric": primary_metric, "decision_rule": f"Win if lift >= {minimum_detectable_effect}% at {confidence_level} confidence"},
+            {"metric_type": "Secondary", "metric": "CTR", "decision_rule": "Should improve or remain neutral"},
+            {"metric_type": "Secondary", "metric": "Conversion Rate", "decision_rule": "Should improve or remain neutral"},
+            {"metric_type": "Guardrail", "metric": "Unsubscribe Rate", "decision_rule": "Must not increase by more than 0.2 percentage points"},
+            {"metric_type": "Guardrail", "metric": "Email Frequency Cap", "decision_rule": "Must respect each member cap"},
+            {"metric_type": "Guardrail", "metric": "Privacy Consent Coverage", "decision_rule": "Must use only consented or contextual signals"},
+        ])
+        st.dataframe(metrics_df, use_container_width=True)
+
+        experiment_df = simulate_experiment(ranked_df, user)
+        impact = business_impact(experiment_df, len(eligible_users))
+        st.subheader("Simulated Result Readout")
+        st.dataframe(experiment_df, use_container_width=True)
+
+        impact_cols = st.columns(len(impact))
+        for index, (label, value) in enumerate(impact.items()):
+            impact_cols[index].metric(label, value)
+
+        st.subheader("Launch Checklist")
+        st.markdown(
+            f"""
+            - Hypothesis documented: {hypothesis}
+            - Unit of randomization: {randomization_unit}
+            - No overlapping experiments on the same member/session population.
+            - Assignment is sticky for the experiment duration.
+            - Exposure logging records variant, member/session id, timestamp, and eligible surface.
+            - Privacy mode is enforced before ranking and Martech activation.
+            - Stop rule: ship treatment only if primary metric wins and guardrails stay healthy.
+            """
+        )
+
+with tab6:
     st.header("Responsible AI & Product Architecture")
 
     st.subheader("Privacy-first personalization controls")
