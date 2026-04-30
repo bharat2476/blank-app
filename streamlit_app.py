@@ -2,7 +2,17 @@ import streamlit as st
 import pandas as pd
 
 from data_generator import generate_users, generate_sellers, generate_products, generate_bids
-from ranking import rank_products, ribbon_products, shoe_email_status
+from ranking import (
+    add_recommendation_explanations,
+    business_impact,
+    lifecycle_strategy,
+    martech_email_decision,
+    privacy_safe_user,
+    rank_products,
+    ribbon_products,
+    simulate_experiment,
+    shoe_email_status
+)
 from auction import run_auction
 from metrics import (
     compute_ctr,
@@ -17,7 +27,7 @@ st.set_page_config(page_title="Nike Personalization Engine Simulator", layout="w
 st.title("Nike Hyper Personalization & Marketing Technology Simulator")
 st.caption(
     "Portfolio demo for product recommendations, sale/trending merchandising, "
-    "explore-vs-exploit ranking, and lifecycle email suppression."
+    "privacy-aware ranking, experimentation, and lifecycle Martech decisions."
 )
 
 # ---------------------------------------------------------
@@ -37,11 +47,12 @@ if "users" not in st.session_state:
 # TABS
 # ---------------------------------------------------------
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Member & Strategy",
     "Recommendations",
     "Marketing & Ads",
-    "Portfolio Metrics"
+    "Portfolio Metrics",
+    "Responsible AI"
 ])
 
 # ---------------------------------------------------------
@@ -99,30 +110,48 @@ with tab1:
 
     audience_filter = st.selectbox("Merchandising Audience Dropdown", ["All", "Men", "Women", "Kids"])
     product_type_filter = st.selectbox("Product Dropdown", ["All", "Footwear", "Apparel", "Accessories"])
+    privacy_mode = st.radio(
+        "Privacy Mode",
+        ["Full consent", "Limited consent", "No app usage data"],
+        horizontal=True,
+        help="Controls which signals are allowed to influence personalization."
+    )
     enforce_diversity = st.checkbox("Enforce Channel Diversity Guardrail", value=True)
 
     st.subheader("Signals Available")
     st.json({
+        "lifecycle_stage": selected_user["lifecycle_stage"],
         "behavioral_interests": selected_user["interests"],
         "browser_signal": selected_user["browser_signal"],
         "nike_app_signals": selected_user["app_signals"],
+        "run_frequency_per_week": selected_user["run_frequency_per_week"],
+        "estimated_monthly_miles": selected_user["estimated_monthly_miles"],
         "last_shoe_purchase_days_ago": selected_user["last_shoe_purchase_days_ago"],
         "email_opt_in": selected_user["email_opt_in"],
+        "marketing_consent": selected_user["consent_marketing"],
+        "app_usage_consent": selected_user["consent_app_usage"],
+        "weekly_email_frequency": (
+            f"{selected_user['emails_sent_last_7_days']} / "
+            f"{selected_user['email_frequency_cap_per_week']}"
+        ),
     })
 
     if st.button("Run Simulation"):
-        st.session_state["user"] = selected_user
+        personalized_user = privacy_safe_user(selected_user, privacy_mode)
+        st.session_state["user"] = personalized_user
+        st.session_state["raw_user"] = selected_user
         st.session_state["config"] = {
             "user_segment": user_segment,
             "roas_fairness": roas_fairness,
             "explore_exploit": explore_exploit,
             "audience_filter": audience_filter,
             "product_type_filter": product_type_filter,
+            "privacy_mode": privacy_mode,
             "enforce_diversity": enforce_diversity,
             "seed": selected_user_id + explore_exploit
         }
 
-        st.success("Simulation saved. Open Recommendations and Marketing & Ads.")
+        st.success("Simulation saved. Open Recommendations, Marketing & Ads, and Portfolio Metrics.")
 
 # ---------------------------------------------------------
 # TAB 2 — PERSONALIZED RESULTS
@@ -149,8 +178,15 @@ with tab2:
         if config["product_type_filter"] != "All":
             filtered_ranked_df = filtered_ranked_df[filtered_ranked_df["product_type"] == config["product_type_filter"]]
 
-        st.subheader(f"{user['customer_name']} | {user['segment']} | {user['customer_type']}")
-        st.write(f"Interests: {user['interests']} | Browser: {user['browser_signal']} | Apps: {user['app_signals']}")
+        st.subheader(
+            f"{user['customer_name']} | {user['segment']} | "
+            f"{user['customer_type']} | {user['lifecycle_stage']}"
+        )
+        st.write(
+            f"Privacy mode: {config['privacy_mode']} | Interests: {user['interests']} | "
+            f"Browser: {user['browser_signal']} | Apps: {user['app_signals']}"
+        )
+        st.info(lifecycle_strategy(user))
 
         ribbon_cols = st.columns(2)
         with ribbon_cols[0]:
@@ -168,12 +204,14 @@ with tab2:
                 use_container_width=True
             )
 
-        st.subheader("Recommended Products")
+        filtered_ranked_df = add_recommendation_explanations(filtered_ranked_df, user)
+
+        st.subheader("Recommended Products with Explainability")
         st.dataframe(
             filtered_ranked_df.head(20)[[
                 "name", "category", "audience", "product_type", "price",
                 "is_on_sale", "discount_pct", "trend_score", "interest_score",
-                "browser_score", "app_score", "final_score"
+                "browser_score", "app_score", "final_score", "why_recommended"
             ]],
             use_container_width=True
         )
@@ -192,9 +230,19 @@ with tab3:
     else:
         user = st.session_state["user"]
         config = st.session_state["config"]
+        ranked_df = st.session_state.get("ranked_df")
+        top_product = ranked_df.iloc[0] if ranked_df is not None and not ranked_df.empty else None
+        email_decision = martech_email_decision(user, top_product)
 
         st.subheader("Lifecycle Email Decision")
         st.info(shoe_email_status(user))
+        decision_cols = st.columns(4)
+        decision_cols[0].metric("Action", email_decision["action"])
+        decision_cols[1].metric("Preferred Channel", email_decision["channel"])
+        decision_cols[2].metric("Lifecycle", user["lifecycle_stage"])
+        decision_cols[3].metric("Emails This Week", f"{user['emails_sent_last_7_days']} / {user['email_frequency_cap_per_week']}")
+        st.write(f"**Subject line:** {email_decision['subject_line']}")
+        st.caption(email_decision["privacy_note"])
         st.write(
             "Rule: if the member just bought footwear, suppress shoe emails. "
             "Running shoe emails resume when the member reaches 5.5 months since last shoe purchase."
@@ -250,13 +298,39 @@ with tab4:
     st.subheader("Additional Pain Points to Address")
     st.markdown(
         """
-        - Cold-start ranking for anonymous visitors with sparse behavioral history.
+        - Inventory-aware ranking with size availability and local fulfillment promises.
         - Identity stitching across web, retail, Nike App, SNKRS, and Nike Run Club.
-        - Size availability, inventory constraints, and local fulfillment promises.
-        - Frequency capping so marketing and onsite recommendations do not over-message.
-        - Privacy, consent, and regional data retention controls.
-        - Explainability for why a product was recommended.
+        - Channel orchestration across email, push, in-app, and paid media.
         - Fairness checks across gender, age groups, and sport communities.
-        - Incrementality measurement to prove recommendations caused lift.
+        - Real incrementality measurement with holdout groups and longer-term LTV.
         """
+    )
+
+with tab5:
+    st.header("Responsible AI & Product Architecture")
+
+    st.subheader("Privacy-first personalization controls")
+    st.markdown(
+        """
+        - Synthetic demo users only; no real GPS, health, purchase, or account data.
+        - Consent gates app usage, marketing activation, and email eligibility.
+        - Limited-consent mode removes Nike app signals and mileage from ranking.
+        - No-app mode falls back to contextual and trend-based recommendations.
+        - Frequency caps, suppression windows, unsubscribe, and retention limits reduce over-targeting.
+        - Recommendation explanations show why each product is ranked.
+        """
+    )
+
+    st.subheader("Reference architecture")
+    st.code(
+        "Signals -> Consent Filter -> Feature Scoring -> Recommender -> Auction/Ranking "
+        "-> Martech Trigger -> Experiment Metrics",
+        language="text"
+    )
+
+    st.subheader("Interview story")
+    st.write(
+        "This demo positions personalization as a measurable, privacy-aware product system: "
+        "it connects member lifecycle, consent, recommendation quality, marketing fatigue, "
+        "ad monetization, and executive impact metrics."
     )

@@ -13,12 +13,20 @@ suppressed or reactivated.
 - 100 generated Nike members split across repeat and new customers, men and
   women, demographics, browser signals, and Nike app usage.
 - Explore-vs-exploit ranking for repeat and new customers.
+- Lifecycle orchestration for new visitors, first-purchase prospects, repeat
+  runners, lapsed runners, active members, and high-value members.
+- Privacy modes for full consent, limited consent, and no app usage data.
+- Explainable recommendation labels for interview storytelling.
 - Sale and trending product ribbons.
 - Dropdown filtering for men, women, kids, footwear, apparel, and accessories.
 - Shoe email suppression when a member recently purchased footwear.
 - Running shoe email reactivation after the 5.5 month replenishment window.
+- Nike Run-style shoe usage signals, frequency caps, channel preferences, and
+  consent-aware Martech email decisions.
+- Simulated A/B experiment metrics and executive business impact estimates.
 - Sponsored product auction and portfolio metrics.
-- Product pain points to discuss in interviews and roadmap conversations.
+- Responsible AI, privacy guardrails, reference architecture, and product pain
+  points to discuss in interviews and roadmap conversations.
 
 ## How to run it on your own machine
 
