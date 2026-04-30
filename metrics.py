@@ -36,6 +36,9 @@ def compute_roas(auction_df, events_df):
     # Total ad spend = sum of winning bids
     total_spend = auction_df["bid_amount"].sum()
 
+    if "price" not in auction_df.columns:
+        return 0.0
+
     # Revenue = sum of product prices for purchased items
     purchased_ids = events_df[events_df["event_type"] == "purchase"]["product_id"]
     revenue = auction_df[auction_df["product_id"].isin(purchased_ids)]["price"].sum()
