@@ -32,8 +32,13 @@ def run_auction(user, bids_df, products_df, sellers_df, config):
     config: dict with sliders (roas_fairness, enforce_diversity)
     """
 
-    df = bids_df.merge(products_df, on="product_id", how="left")
-    df = df.merge(sellers_df, on="seller_id", how="left")
+    df = bids_df.merge(
+        products_df,
+        on="product_id",
+        how="left",
+        suffixes=("_bid", "")
+    )
+    df = df.merge(sellers_df, on="seller_id", how="left", suffixes=("", "_seller"))
 
     # Compute relevance
     df["relevance"] = df["category"].apply(
@@ -65,6 +70,9 @@ def run_auction(user, bids_df, products_df, sellers_df, config):
         "product_id",
         "name",
         "category",
+        "audience",
+        "product_type",
+        "price",
         "bid_amount",
         "relevance",
         "fairness_factor",
