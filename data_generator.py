@@ -30,11 +30,22 @@ def generate_users(n=100):
         interests = random.sample(segments[segment], 2)
         customer_type = "Repeat" if i < int(n * 0.62) else "New"
         app_signals = random.sample(apps, random.randint(1, 3))
+        run_frequency_per_week = random.choice([0, 1, 2, 3, 4, 5])
+        estimated_monthly_miles = run_frequency_per_week * random.randint(8, 24)
         last_shoe_purchase_days_ago = (
             random.choice([7, 21, 45, 120, 168, 181, 230])
             if customer_type == "Repeat"
             else None
         )
+        email_opt_in = random.choice([True, True, True, False])
+        if customer_type == "New":
+            lifecycle_stage = random.choice(["New Visitor", "First Purchase Prospect"])
+        elif last_shoe_purchase_days_ago and last_shoe_purchase_days_ago >= 230:
+            lifecycle_stage = "Lapsed Runner"
+        elif random.random() < 0.22:
+            lifecycle_stage = "High-Value Member"
+        else:
+            lifecycle_stage = random.choice(["Repeat Runner", "Active Member"])
 
         users.append({
             "user_id": i,
@@ -43,14 +54,22 @@ def generate_users(n=100):
             "age_group": random.choice(age_groups),
             "location": random.choice(locations),
             "customer_type": customer_type,
+            "lifecycle_stage": lifecycle_stage,
             "segment": segment,
             "interests": interests,
             "browser_signal": random.choice(interests + ["Sale", "Trending"]),
             "app_signals": app_signals,
+            "run_frequency_per_week": run_frequency_per_week,
+            "estimated_monthly_miles": estimated_monthly_miles,
             "last_purchase_category": random.choice(["Footwear", "Apparel", "Accessories"]),
             "last_shoe_purchase_days_ago": last_shoe_purchase_days_ago,
             "avg_order_value": random.randint(65, 240),
-            "email_opt_in": random.choice([True, True, True, False]),
+            "email_opt_in": email_opt_in,
+            "consent_app_usage": random.choice([True, True, True, False]),
+            "consent_marketing": email_opt_in and random.choice([True, True, True, False]),
+            "channel_preference": random.choice(["Email", "Push", "In-app", "Email + Push"]),
+            "emails_sent_last_7_days": random.randint(0, 5),
+            "email_frequency_cap_per_week": random.choice([2, 3, 4]),
         })
 
     return pd.DataFrame(users)

@@ -33,10 +33,9 @@ def run_auction(user, bids_df, products_df, sellers_df, config):
     """
 
     df = bids_df.merge(
-        products_df,
+        products_df.drop(columns=["seller_id"]),
         on="product_id",
-        how="left",
-        suffixes=("_bid", "")
+        how="left"
     )
     df = df.merge(sellers_df, on="seller_id", how="left", suffixes=("", "_seller"))
 
