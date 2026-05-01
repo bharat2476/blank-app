@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from pathlib import Path
 
 from data_generator import generate_users, generate_sellers, generate_products, generate_bids
 from ranking import (
@@ -47,13 +48,14 @@ if "users" not in st.session_state:
 # TABS
 # ---------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "Member & Strategy",
     "Recommendations",
     "Marketing & Ads",
     "Portfolio Metrics",
     "A/B Testing Lab",
-    "Responsible AI"
+    "Responsible AI",
+    "Architecture Diagram"
 ])
 
 # ---------------------------------------------------------
@@ -438,9 +440,17 @@ with tab6:
         language="text"
     )
 
-    st.subheader("Interview story")
+    st.subheader("Story")
     st.write(
         "This demo positions personalization as a measurable, privacy-aware product system: "
         "it connects member lifecycle, consent, recommendation quality, marketing fatigue, "
         "ad monetization, and executive impact metrics."
     )
+
+with tab7:
+    st.header("Architecture Diagram")
+    diagram_path = Path(__file__).with_name("architecture diagram.png")
+    if diagram_path.exists():
+        st.image(str(diagram_path), caption="Blank App architecture workflow", use_container_width=True)
+    else:
+        st.warning("Architecture diagram file not found. Expected: architecture diagram.png")
