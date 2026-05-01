@@ -30,6 +30,24 @@ suppressed or reactivated.
 - Sponsored product auction and portfolio metrics.
 - Responsible AI, privacy guardrails, reference architecture, and product pain
   points to discuss in interviews and roadmap conversations.
+- Architecture Diagram tab to visualize end-to-end product workflow.
+
+## Current app tabs
+
+1. Member & Strategy
+2. Recommendations
+3. Marketing & Ads
+4. Portfolio Metrics
+5. A/B Testing Lab
+6. Responsible AI
+7. Architecture Diagram
+
+## Member selection criteria
+
+- Member segment
+- Customer type
+- Member gender
+- Privacy preference (how much the user wants to share)
 
 ## View the live prototype
 
