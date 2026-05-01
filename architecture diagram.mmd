@@ -1,0 +1,24 @@
+flowchart TD
+    A[Streamlit App Start<br/>streamlit_app.py] --> B{session_state initialized?}
+    B -- No --> C[Generate synthetic datasets<br/>users, sellers, products, bids]
+    B -- Yes --> D[Reuse in-memory DataFrames]
+    C --> E1[Tab 1: Member & Strategy]
+    D --> E1
+
+    E1 --> E2[Tab 2: Recommendations<br/>rank_products + ribbon_products]
+    E2 --> E3[Tab 3: Marketing & Ads<br/>shoe_email_status + run_auction]
+    E3 --> E4[Tab 4: Portfolio Metrics<br/>CTR / Conversion / ROAS / Diversity]
+    E4 --> E5[Tab 5: A/B Testing Lab]
+    E5 --> E6[Tab 6: Responsible AI]
+
+    E1 --> S1[user + config]
+    E2 --> S2[ranked_df]
+    E3 --> S3[auction_df]
+    E4 --> S4[metrics views]
+
+    S1 --> SS[(st.session_state)]
+    S2 --> SS
+    S3 --> SS
+    S4 --> SS
+
+    N1[Seller ID contract enforced<br/>before seller merge] -.-> E3
