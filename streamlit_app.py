@@ -77,6 +77,9 @@ with tab1:
         "This simulator combines behavioral signals, browser intent, Nike app signals, "
         "customer lifecycle, and merchandising goals into one recommendation platform."
     )
+    st.caption(
+        "Selection criteria include member segment, customer type, gender, and privacy sharing preference."
+    )
 
     user_segment = st.selectbox("Select Member Segment", sorted(users_df["segment"].unique()))
     customer_type = st.selectbox("Customer Type", ["All", "Repeat", "New"])
@@ -114,7 +117,7 @@ with tab1:
     audience_filter = st.selectbox("Merchandising Audience Dropdown", ["All", "Men", "Women", "Kids"])
     product_type_filter = st.selectbox("Product Dropdown", ["All", "Footwear", "Apparel", "Accessories"])
     privacy_mode = st.radio(
-        "Privacy Mode",
+        "Privacy Preference (how much user wants to share)",
         ["Full consent", "Limited consent", "No app usage data"],
         horizontal=True,
         help="Controls which signals are allowed to influence personalization."
