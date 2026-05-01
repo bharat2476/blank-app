@@ -1,17 +1,17 @@
-# Nike Hyper Personalization & Marketing Technology Simulator
+# Personalization & Ad Targeting Simulator
 
 This Streamlit portfolio app demonstrates a recommendation engine and marketing
-technology platform for Nike products. It simulates how behavioral signals,
-browser intent, Nike app signals, customer lifecycle, and merchandising goals can
+technology platform for a digital marketplace. It simulates how behavioral signals,
+browser intent, app signals, customer lifecycle, and merchandising goals can
 work together to recommend products and decide when marketing emails should be
 suppressed or reactivated.
 
 ## Demo scope
 
-- 500 generated Nike products across sport categories, audiences, and product
+- 500 generated products across sport categories, audiences, and product
   types.
-- 100 generated Nike members split across repeat and new customers, men and
-  women, demographics, browser signals, and Nike app usage.
+- 100 generated members split across repeat and new customers, men and
+  women, demographics, browser signals, and app usage.
 - Explore-vs-exploit ranking for repeat and new customers.
 - Lifecycle orchestration for new visitors, first-purchase prospects, repeat
   runners, lapsed runners, active members, and high-value members.
@@ -21,14 +21,14 @@ suppressed or reactivated.
 - Dropdown filtering for men, women, kids, footwear, apparel, and accessories.
 - Shoe email suppression when a member recently purchased footwear.
 - Running shoe email reactivation after the 5.5 month replenishment window.
-- Nike Run-style shoe usage signals, frequency caps, channel preferences, and
+- App usage signals, frequency caps, channel preferences, and
   consent-aware Martech email decisions.
 - Simulated A/B experiment metrics and executive business impact estimates.
 - Dedicated A/B Testing Lab with hypothesis, population, randomization unit,
   traffic allocation, sample assumptions, primary metric, guardrails, variants,
   result readout, and launch checklist.
 - Sponsored product auction and portfolio metrics.
-- Responsible AI, privacy guardrails, reference architecture, and product pain
+- Trust & Safety, privacy guardrails, reference architecture, and product pain
   points to discuss in interviews and roadmap conversations.
 - Architecture Diagram tab to visualize end-to-end product workflow.
 
@@ -39,8 +39,24 @@ suppressed or reactivated.
 3. Marketing & Ads
 4. Portfolio Metrics
 5. A/B Testing Lab
-6. Responsible AI
+6. Trust & Safety
 7. Architecture Diagram
+
+## Interview framing (FAANG-style)
+
+### Architecture principles
+
+- User trust first: consent and communication controls gate personalization.
+- Business + user balance: ranking and auction optimize outcomes while protecting relevance.
+- Explainability by default: recommendations include plain-language rationale.
+- Experiment-driven iteration: A/B testing drives rollout decisions with guardrails.
+
+### Key trade-offs
+
+- Relevance vs. exploration (precision vs. discovery)
+- Revenue vs. fairness (monetization vs. marketplace diversity)
+- Personalization depth vs. privacy (signal richness vs. data minimization)
+- Velocity vs. risk (shipping speed vs. guardrail quality)
 
 ## Member selection criteria
 
@@ -91,7 +107,7 @@ suppressed or reactivated.
 
 - Member interests and lifecycle stage
 - Browser intent signal
-- Nike app affinity signals
+- App affinity signals
 - Audience fit (Men/Women/Kids)
 - Product trend, popularity, recency, and margin
 - Seller type (`is_small_seller`)

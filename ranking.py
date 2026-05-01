@@ -4,10 +4,10 @@ from datetime import datetime
 
 
 APP_AFFINITIES = {
-    "Nike Run Club": ["Running", "Trail"],
-    "Nike Training Club": ["Training", "Yoga"],
-    "SNKRS": ["Lifestyle", "Basketball", "Skateboarding"],
-    "Nike App": ["Running", "Training", "Lifestyle", "Soccer"],
+    "Run Club App": ["Running", "Trail"],
+    "Training App": ["Training", "Yoga"],
+    "Sneaker Drops App": ["Lifestyle", "Basketball", "Skateboarding"],
+    "Shopping App": ["Running", "Training", "Lifestyle", "Soccer"],
 }
 
 # -----------------------------------------
@@ -139,7 +139,7 @@ def martech_email_decision(user, top_product):
         subject = "No campaign sent"
         action = "Suppress"
     else:
-        product_name = top_product["name"] if top_product is not None else "recommended Nike gear"
+        product_name = top_product["name"] if top_product is not None else "recommended products"
         subject = f"{user['customer_name']}, your next run starts with {product_name}"
         action = "Send"
 

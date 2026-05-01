@@ -165,7 +165,7 @@ Problem? → Check Prompt 3 (Git issues) or Prompt 1 (Local issues) or Prompt 2 
 
 ### Prompt 1 Success:
 ✅ Terminal shows "Uvicorn server started on 0.0.0.0:8501"  
-✅ Browser shows "Nike Hyper Personalization & Marketing Technology Simulator"  
+✅ Browser shows "Personalization & Ad Targeting Simulator"  
 ✅ All 7 tabs appear in the tab bar  
 ✅ Member selection filters respond to changes  
 ✅ Run Simulation button works  

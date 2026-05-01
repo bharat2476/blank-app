@@ -16,7 +16,7 @@ flowchart TD
     E2 --> E3[Tab 3: Marketing & Ads<br/>shoe_email_status + run_auction]
     E3 --> E4[Tab 4: Portfolio Metrics<br/>CTR / Conversion / ROAS / Diversity]
     E4 --> E5[Tab 5: A/B Testing Lab]
-    E5 --> E6[Tab 6: Responsible AI]
+    E5 --> E6[Tab 6: Trust & Safety]
 
     E1 --> S1[Persist user + config]
     E2 --> S2[Persist ranked_df]
@@ -35,7 +35,7 @@ flowchart TD
 3. Tab 3 executes lifecycle messaging and sponsored auction logic.
 4. Tab 4 computes portfolio and marketplace KPIs.
 5. Tab 5 runs experimentation workflows in the A/B Testing Lab.
-6. Tab 6 surfaces Responsible AI checks, fairness, and governance signals.
+6. Tab 6 surfaces trust, safety, fairness, and governance signals.
 
 ## Fixed Workflow (Seller ID Contract)
 
@@ -60,5 +60,5 @@ To avoid `KeyError: 'seller_id'` in `run_auction()`, keep `seller_id` present an
 
 - Single-process architecture; no external services or database.
 - Data is generated once per session and reused via `st.session_state`.
-- In the current code snapshot, only Tabs 1-4 are implemented; this diagram reflects the requested 6-tab architecture target.
+- The current code includes a 7th tab, `Architecture Diagram`, for visual workflow documentation.
 

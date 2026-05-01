@@ -1,5 +1,5 @@
 # VS Code Copilot Prompts Guide
-## Nike Hyper Personalization & Marketing Technology Simulator
+## Personalization & Ad Targeting Simulator
 
 **Repository:** https://github.com/bharat2476/blank-app  
 **Live Demo:** https://blank-app-zwp52hqbzm2sxhgqckmv6w.streamlit.app/  
@@ -9,7 +9,7 @@
 
 ## 📋 Overview
 
-This document provides three core VS Code Copilot prompts for managing, running, and deploying the Nike Personalization app. Use these to automate setup, development, and cloud deployment workflows.
+This document provides three core VS Code Copilot prompts for managing, running, and deploying the personalization app. Use these to automate setup, development, and cloud deployment workflows.
 
 ---
 
@@ -20,7 +20,7 @@ Set up and launch the Streamlit app locally for development and testing.
 
 ### Full Prompt
 ```
-Create a complete VS Code terminal task and development environment setup guide for the Nike Hyper Personalization & Marketing Technology Simulator Streamlit app. Include:
+Create a complete VS Code terminal task and development environment setup guide for a personalization and ad targeting Streamlit app. Include:
 
 1. Python environment verification (v3.14+ required)
 2. Virtual environment setup (optional but recommended)
@@ -63,7 +63,7 @@ Deploy the app to Streamlit Cloud for public access and share the live URL.
 
 ### Full Prompt
 ```
-Create a comprehensive Streamlit Cloud deployment guide for the Nike Hyper Personalization & Marketing Technology Simulator. This guide should help a developer go from local development to a production-ready deployment. Include:
+Create a comprehensive Streamlit Cloud deployment guide for a personalization and ad targeting simulator. This guide should help a developer go from local development to a production-ready deployment. Include:
 
 1. Pre-deployment checklist
    - All code committed to GitHub (no uncommitted changes)
@@ -180,7 +180,7 @@ Understand and resolve common git issues, manage commits, and troubleshoot deplo
 
 ### Full Prompt
 ```
-Create a comprehensive guide for managing git workflows in VS Code for the Nike Personalization app. This should be beginner-friendly but also cover advanced scenarios. Include:
+Create a comprehensive guide for managing git workflows in VS Code for a personalization app. This should be beginner-friendly but also cover advanced scenarios. Include:
 
 1. Understanding VS Code Source Control panel
    - How to open Source Control (Ctrl+Shift+G)

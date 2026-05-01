@@ -19,7 +19,7 @@ def generate_users(n=100):
         "Wellness & Studio": ["Yoga", "Training", "Running"],
         "Outdoor Explorer": ["Trail", "Golf", "Running"],
     }
-    apps = ["Nike Run Club", "Nike Training Club", "SNKRS", "Nike App"]
+    apps = ["Run Club App", "Training App", "Sneaker Drops App", "Shopping App"]
     genders = ["Men", "Women"]
     age_groups = ["18-24", "25-34", "35-44", "45-54", "55+"]
     locations = ["NY", "CA", "TX", "WA", "FL", "IL", "GA", "OR"]
@@ -49,7 +49,7 @@ def generate_users(n=100):
 
         users.append({
             "user_id": i,
-            "customer_name": f"Nike Member {i:03d}",
+            "customer_name": f"Member {i:03d}",
             "gender": random.choice(genders),
             "age_group": random.choice(age_groups),
             "location": random.choice(locations),
@@ -86,7 +86,7 @@ def generate_sellers(n=12):
     for i in range(n):
         sellers.append({
             "seller_id": i,
-            "name": f"Nike Channel {i}",
+            "name": f"Marketplace Channel {i}",
             "category_focus": random.choice(categories),
             "rating": round(random.uniform(3.0, 5.0), 2),
             "historical_revenue": random.randint(5000, 500000),
@@ -122,7 +122,7 @@ def generate_products(sellers_df, n=500):
         products.append({
             "product_id": i,
             "seller_id": seller["seller_id"],
-            "name": f"Nike {random.choice(product_names[product_type])} {i:03d}",
+            "name": f"{random.choice(product_names[product_type])} {i:03d}",
             "category": random.choice(sport_categories),
             "audience": random.choice(audiences),
             "product_type": product_type,

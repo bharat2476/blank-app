@@ -23,9 +23,9 @@ from metrics import (
     compute_small_seller_share
 )
 
-st.set_page_config(page_title="Nike Personalization Engine Simulator", layout="wide")
+st.set_page_config(page_title="Personalization & Ad Targeting Simulator", layout="wide")
 
-st.title("Nike Hyper Personalization & Marketing Technology Simulator")
+st.title("Personalization & Ad Targeting Simulator")
 st.caption(
     "Portfolio demo for product recommendations, sale/trending merchandising, "
     "privacy-aware ranking, experimentation, and lifecycle Martech decisions."
@@ -54,7 +54,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "Marketing & Ads",
     "Portfolio Metrics",
     "A/B Testing Lab",
-    "Responsible AI",
+    "Trust & Safety",
     "Architecture Diagram"
 ])
 
@@ -74,7 +74,7 @@ with tab1:
     metric_cols[3].metric("New Customers", int((users_df["customer_type"] == "New").sum()))
 
     st.write(
-        "This simulator combines behavioral signals, browser intent, Nike app signals, "
+        "This simulator combines behavioral signals, browser intent, app signals, "
         "customer lifecycle, and merchandising goals into one recommendation platform."
     )
     st.caption(
@@ -129,7 +129,7 @@ with tab1:
         "lifecycle_stage": selected_user["lifecycle_stage"],
         "behavioral_interests": selected_user["interests"],
         "browser_signal": selected_user["browser_signal"],
-        "nike_app_signals": selected_user["app_signals"],
+        "app_signals": selected_user["app_signals"],
         "run_frequency_per_week": selected_user["run_frequency_per_week"],
         "estimated_monthly_miles": selected_user["estimated_monthly_miles"],
         "last_shoe_purchase_days_ago": selected_user["last_shoe_purchase_days_ago"],
@@ -222,6 +222,63 @@ with tab2:
             use_container_width=True
         )
 
+        with st.expander("How recommendation scores are calculated", expanded=False):
+            st.markdown(
+                """
+                **Score definitions**
+
+                - `interest_score`: `1.0` if product category is in member interests, else `0.0`.
+                - `browser_score`: `1.0` if browser intent matches category, or if browser intent is `Sale` for on-sale items, or `Trending` for high-trend items (trend >= 70); otherwise `0.0`.
+                - `trend_score`: base marketplace trend signal from product data; normalized in ranking as `trend_norm = trend_score / max(trend_score)`.
+                - `final_score`: weighted blend of personalization + business signals + lifecycle boost + exploration noise.
+
+                **Final score formula (recommendations)**
+
+                `final_score =`
+                `interest_score * 0.30 * exploit_weight`
+                `+ audience_score * 0.18 * exploit_weight`
+                `+ browser_score * 0.15 * exploit_weight`
+                `+ app_score * 0.14 * exploit_weight`
+                `+ popularity_norm * 0.12 * exploit_weight`
+                `+ trend_norm * 0.06 * exploit_weight`
+                `+ recency_norm * 0.05 * exploit_weight`
+                `+ margin_score * lifecycle_boost`
+                `+ trend_norm * discovery_boost`
+                `+ lifecycle_score`
+                `+ random_exploration(0..explore_weight)`
+
+                where:
+                - `explore_weight = explore_exploit / 100`
+                - `exploit_weight = 1 - explore_weight`
+                - `lifecycle_boost = 0.12` for repeat members, else `0.0`
+                - `discovery_boost = 0.12` for new members, else `0.0`
+                """
+            )
+            st.markdown(
+                """
+                **Signals currently used**
+
+                - Declared member interests
+                - Browser intent signal (`category`, `Sale`, `Trending`)
+                - App affinity signals (`Run Club App`, `Training App`, `Sneaker Drops App`, `Shopping App`)
+                - Audience fit (`Men`, `Women`, `Kids`)
+                - Product trend, popularity, and recency
+                - Product margin score
+                - Lifecycle stage + customer type
+                - Privacy preference (limits which signals are available)
+
+                **Suggested additional signals**
+
+                - Inventory and size availability by location
+                - Price affinity and discount sensitivity
+                - Returns history / fit confidence
+                - Session context (time of day, device, channel)
+                - Weather and seasonality by geography
+                - Brand-newness preference vs replenishment intent
+                - Delivery speed / fulfillment promise
+                """
+            )
+
         st.session_state["ranked_df"] = filtered_ranked_df
 
 # ---------------------------------------------------------
@@ -265,6 +322,45 @@ with tab3:
         st.subheader("Sponsored Product Auction")
         st.dataframe(auction_df.head(15), use_container_width=True)
 
+        with st.expander("How auction scores are calculated", expanded=False):
+            st.markdown(
+                """
+                **Score definitions**
+
+                - `relevance`: `1.0` if ad product category is in member interests, else `0.2`.
+                - `fairness_factor`: `1.25` for small sellers when diversity guardrail is enabled, else `1.0`.
+                - `final_score`: blend of bid value (ROAS), user relevance, and fairness.
+
+                **Final score formula (auction)**
+
+                `roas_weight = roas_fairness / 100`
+                `fairness_weight = 1 - roas_weight`
+
+                `final_score = (bid_amount * roas_weight) + (relevance * 0.5) + (fairness_factor * fairness_weight)`
+                """
+            )
+            st.markdown(
+                """
+                **Signals currently used**
+
+                - Bid amount from sellers
+                - Member interest-category relevance
+                - Seller type (`is_small_seller`)
+                - Diversity guardrail toggle (`enforce_diversity`)
+                - ROAS vs fairness slider (`roas_fairness`)
+
+                **Suggested additional signals**
+
+                - Predicted click-through and conversion probability
+                - Margin-aware value per click/order
+                - Ad quality and historical engagement
+                - Frequency capping and fatigue at member level
+                - Budget pacing and campaign constraints
+                - Category-level fairness constraints over time
+                - Post-click outcomes (returns, cancellations) for quality weighting
+                """
+            )
+
         st.session_state["auction_df"] = auction_df
 
 # ---------------------------------------------------------
@@ -298,14 +394,14 @@ with tab4:
         st.metric("Seller Diversity Index", diversity)
         st.metric("Channel Diversity Share", small_seller_share)
 
-        st.write("Impressions by Nike Channel")
+        st.write("Impressions by Channel")
         st.bar_chart(impressions_df["seller_id"].value_counts())
 
     st.subheader("Additional Pain Points to Address")
     st.markdown(
         """
         - Inventory-aware ranking with size availability and local fulfillment promises.
-        - Identity stitching across web, retail, Nike App, SNKRS, and Nike Run Club.
+        - Identity stitching across web, retail, app, and engagement platforms.
         - Channel orchestration across email, push, in-app, and paid media.
         - Fairness checks across gender, age groups, and sport communities.
         - Real incrementality measurement with holdout groups and longer-term LTV.
@@ -422,14 +518,14 @@ with tab5:
         )
 
 with tab6:
-    st.header("Responsible AI & Product Architecture")
+    st.header("Trust & Safety & Product Architecture")
 
     st.subheader("Privacy-first personalization controls")
     st.markdown(
         """
         - Synthetic demo users only; no real GPS, health, purchase, or account data.
         - Consent gates app usage, marketing activation, and email eligibility.
-        - Limited-consent mode removes Nike app signals and mileage from ranking.
+        - Limited-consent mode removes app signals and mileage from ranking.
         - No-app mode falls back to contextual and trend-based recommendations.
         - Frequency caps, suppression windows, unsubscribe, and retention limits reduce over-targeting.
         - Recommendation explanations show why each product is ranked.
@@ -448,6 +544,25 @@ with tab6:
         "This demo positions personalization as a measurable, privacy-aware product system: "
         "it connects member lifecycle, consent, recommendation quality, marketing fatigue, "
         "ad monetization, and executive impact metrics."
+    )
+    st.subheader("Architecture principles")
+    st.markdown(
+        """
+        - **User trust first:** consent and communication controls gate personalization.
+        - **Business + user balance:** ranking and auction optimize outcomes while protecting relevance.
+        - **Explainability by default:** recommendations include plain-language rationale.
+        - **Experiment-driven iteration:** A/B testing drives rollout decisions with guardrails.
+        """
+    )
+
+    st.subheader("Key trade-offs")
+    st.markdown(
+        """
+        - **Relevance vs. exploration:** short-term precision versus long-term discovery.
+        - **Revenue vs. fairness:** maximizing bid value while protecting marketplace diversity.
+        - **Personalization depth vs. privacy:** richer signals versus stricter data minimization.
+        - **Velocity vs. risk:** shipping quickly while maintaining measurable guardrails.
+        """
     )
 
 with tab7:
