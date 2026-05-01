@@ -31,6 +31,14 @@ suppressed or reactivated.
 - Responsible AI, privacy guardrails, reference architecture, and product pain
   points to discuss in interviews and roadmap conversations.
 
+## View the live prototype
+
+Anyone can open and view the deployed prototype using this public URL:
+
+- https://blank-app-zwp52hqbzm2sxhgqckmv6w.streamlit.app/
+
+No local setup is required for viewing. Open the link in any browser.
+
 ## How to run it on your own machine
 
 1. Install the requirements
