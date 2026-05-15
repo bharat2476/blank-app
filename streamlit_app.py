@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-from data_generator import generate_users, generate_sellers, generate_products, generate_bids
+from data_generator import initialize_marketplace
+from seed_data import get_mock_1st_party_data, get_product_registry_df
 from ranking import (
     add_recommendation_explanations,
     business_impact,
@@ -16,7 +17,6 @@ from ranking import (
 from martech_engine import (
     REC_VARIANT_BEHAVIORAL,
     REC_VARIANT_HYBRID,
-    build_dynamic_reason,
     evaluate_push_notification,
     init_martech_session,
     log_propensity_evaluation,
@@ -33,9 +33,21 @@ from metrics import (
     compute_seller_diversity,
     compute_small_seller_share
 )
+from personascale_ui import (
+    inject_enterprise_css,
+    render_brand_header,
+    render_engine_telemetry,
+    render_kpi_shelf,
+    render_product_grid,
+)
 
-st.set_page_config(page_title="Personalization & Ad Targeting Simulator", layout="wide")
+st.set_page_config(
+    page_title="PersonaScale AI | Real-Time Orchestration",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
+inject_enterprise_css()
 init_martech_session(st.session_state)
 
 
@@ -48,6 +60,8 @@ def _on_product_click(product_id, category):
 
 
 with st.sidebar:
+    st.markdown("### PersonaScale AI")
+    st.caption("Orchestration control plane")
     st.subheader("Experiment Controls")
     st.radio(
         "Recommendation Variant",
@@ -64,24 +78,20 @@ with st.sidebar:
         else:
             st.caption("No propensity evaluations yet. Open Marketing & Ads after simulating.")
 
-st.title("Personalization & Ad Targeting Simulator")
-st.caption(
-    "Portfolio demo for product recommendations, sale/trending merchandising, "
-    "privacy-aware ranking, experimentation, and lifecycle Martech decisions."
-)
+render_brand_header()
+render_kpi_shelf(st.session_state)
 
 # ---------------------------------------------------------
 # INITIALIZE DATA ON FIRST LOAD
 # ---------------------------------------------------------
 
 if "users" not in st.session_state:
-    st.session_state["users"] = generate_users()
-    st.session_state["sellers"] = generate_sellers()
-    st.session_state["products"] = generate_products(st.session_state["sellers"])
-    st.session_state["bids"] = generate_bids(
-        st.session_state["products"],
-        st.session_state["sellers"]
-    )
+    marketplace = initialize_marketplace()
+    st.session_state["users"] = marketplace["users"]
+    st.session_state["sellers"] = marketplace["sellers"]
+    st.session_state["products"] = marketplace["products"]
+    st.session_state["bids"] = marketplace["bids"]
+    st.session_state["product_registry"] = get_product_registry_df()
 
 # ---------------------------------------------------------
 # TABS
@@ -179,7 +189,19 @@ with tab1:
             f"{selected_user['emails_sent_last_7_days']} / "
             f"{selected_user['email_frequency_cap_per_week']}"
         ),
+        "affinity_tags": selected_user.get("affinity_tags", []),
     })
+
+    with st.expander("1st-party historical events (seed_data registry)", expanded=False):
+        st.json(get_mock_1st_party_data(selected_user_id))
+
+    with st.expander("Product registry sample (canonical SKUs)", expanded=False):
+        st.dataframe(
+            st.session_state["product_registry"].head(12)[
+                ["sku", "name", "category", "price", "margin", "behavioral_tags"]
+            ],
+            use_container_width=True,
+        )
 
     if st.button("Run Simulation"):
         reset_martech_session(st.session_state)
@@ -235,6 +257,11 @@ with tab2:
         if config["product_type_filter"] != "All":
             filtered_ranked_df = filtered_ranked_df[filtered_ranked_df["product_type"] == config["product_type_filter"]]
 
+        catalog_lookup = products_df.set_index("product_id")
+        for col in ("sku", "behavioral_tags", "margin"):
+            if col in products_df.columns:
+                filtered_ranked_df[col] = filtered_ranked_df["product_id"].map(catalog_lookup[col])
+
         st.subheader(
             f"{user['customer_name']} | {user['segment']} | "
             f"{user['customer_type']} | {user['lifecycle_stage']}"
@@ -271,43 +298,29 @@ with tab2:
 
         filtered_ranked_df = add_recommendation_explanations(filtered_ranked_df, user)
 
-        st.subheader("Live Product Grid")
-        st.caption("View or click cards to re-rank instantly via Streamlit session reactivity.")
-        grid_df = filtered_ranked_df.head(6)
-        grid_cols = st.columns(3)
-        for grid_index, (_, product_row) in enumerate(grid_df.iterrows()):
-            with grid_cols[grid_index % 3]:
-                st.markdown(f"**{product_row['name']}**")
-                st.write(
-                    f"${product_row['price']:.2f} · {product_row['category']} · "
-                    f"Score {product_row['final_score']:.3f}"
-                )
-                action_cols = st.columns(2)
-                with action_cols[0]:
-                    st.button(
-                        "View",
-                        key=f"view_{product_row['product_id']}",
-                        on_click=_on_product_view,
-                        args=(int(product_row["product_id"]), product_row["category"]),
-                    )
-                with action_cols[1]:
-                    st.button(
-                        "Click",
-                        key=f"click_{product_row['product_id']}",
-                        on_click=_on_product_click,
-                        args=(int(product_row["product_id"]), product_row["category"]),
-                    )
-                st.caption(
-                    build_dynamic_reason(user, product_row, rec_variant, interactions)
-                )
+        st.subheader("Retail Recommendation Shelf")
+        st.caption("Enterprise product cards · 4-up grid · live View/Click re-ranking")
+        render_product_grid(
+            filtered_ranked_df,
+            user,
+            rec_variant,
+            interactions,
+            _on_product_view,
+            _on_product_click,
+            max_cards=8,
+            per_row=4,
+        )
 
         st.subheader("Recommended Products with Explainability")
+        display_cols = [
+            "sku", "name", "category", "audience", "product_type", "price",
+            "is_on_sale", "discount_pct", "trend_score", "interest_score",
+            "browser_score", "app_score", "final_score", "why_recommended",
+        ]
+        if "behavioral_tags" in filtered_ranked_df.columns:
+            display_cols.insert(2, "behavioral_tags")
         st.dataframe(
-            filtered_ranked_df.head(20)[[
-                "name", "category", "audience", "product_type", "price",
-                "is_on_sale", "discount_pct", "trend_score", "interest_score",
-                "browser_score", "app_score", "final_score", "why_recommended"
-            ]],
+            filtered_ranked_df.head(20)[[c for c in display_cols if c in filtered_ranked_df.columns]],
             use_container_width=True
         )
 
@@ -683,6 +696,9 @@ with tab7:
     st.header("Architecture Diagram")
     diagram_path = Path(__file__).with_name("architecture diagram.png")
     if diagram_path.exists():
-        st.image(str(diagram_path), caption="Blank App architecture workflow", use_container_width=True)
+        st.image(str(diagram_path), caption="PersonaScale AI architecture workflow", use_container_width=True)
     else:
         st.warning("Architecture diagram file not found. Expected: architecture diagram.png")
+
+st.divider()
+render_engine_telemetry(st.session_state)

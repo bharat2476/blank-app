@@ -18,6 +18,7 @@ from ranking import (
     rank_products,
     recency_score,
 )
+from seed_data import get_mock_1st_party_data
 
 PROPENSITY_THRESHOLD = 0.75
 REC_VARIANT_BEHAVIORAL = "Variant A: Behavioral-Only"
@@ -153,23 +154,61 @@ def process_member_signals(user, interactions, privacy_mode, privacy_fn):
 # Hybrid recommendation
 # ---------------------------------------------------------------------------
 
-def behavioral_affinity_score(product_row, interactions):
+def _tag_overlap_score(product_tags, affinity_tags):
+    if not product_tags or not affinity_tags:
+        return 0.0
+    product_set = {t.lower() for t in product_tags}
+    affinity_set = {t.lower() for t in affinity_tags}
+    overlap = len(product_set & affinity_set)
+    return min(1.0, overlap / max(len(product_set), 1) * 0.85)
+
+
+def _first_party_engagement_score(user, product_row):
+    first_party = get_mock_1st_party_data(user.get("user_id", 0))
+    score = 0.0
+
+    for dwell in first_party.get("high_dwell_categories", []):
+        if dwell["category"] == product_row.get("category"):
+            score += min(0.35, dwell["dwell_seconds"] / 2000)
+            score += min(0.15, dwell["pdp_views"] * 0.04)
+
+    product_tags = product_row.get("behavioral_tags") or []
+    score += _tag_overlap_score(product_tags, first_party.get("affinity_tags", [])) * 0.25
+
+    for purchase in first_party.get("prior_purchases", []):
+        if purchase["sku"] == product_row.get("parent_sku") or purchase["sku"] == product_row.get("sku"):
+            score += 0.20
+        if purchase["category"] == product_row.get("category"):
+            score += 0.08
+
+    email = first_party.get("email_engagement", {})
+    score += min(0.10, email.get("clicks_30d", 0) * 0.03)
+
+    return min(1.0, score)
+
+
+def behavioral_affinity_score(product_row, interactions, user=None):
     pid = int(product_row["product_id"])
     category = product_row["category"]
     views = interactions.get("views", {}).get(pid, 0)
     clicks = interactions.get("clicks", {}).get(pid, 0)
     cat_views = interactions.get("category_views", {}).get(category, 0)
     cat_clicks = interactions.get("category_clicks", {}).get(category, 0)
-    return min(
+    session_score = min(
         1.0,
         views * 0.15 + clicks * 0.35 + cat_views * 0.08 + cat_clicks * 0.20,
     )
+    if user is None:
+        return session_score
+
+    first_party_score = _first_party_engagement_score(user, product_row)
+    return min(1.0, session_score * 0.55 + first_party_score * 0.45)
 
 
-def _attach_behavioral_scores(df, interactions):
+def _attach_behavioral_scores(df, interactions, user=None):
     out = df.copy()
     out["behavioral_score"] = out.apply(
-        lambda row: behavioral_affinity_score(row, interactions),
+        lambda row: behavioral_affinity_score(row, interactions, user),
         axis=1,
     )
     return out
@@ -202,7 +241,7 @@ def rank_products_variant(user, products_df, config, interactions, variant):
         df["trend_norm"] = df["trend_score"] / df["trend_score"].max()
         df["recency_norm"] = df["created_at"].apply(recency_score)
         df["behavioral_score"] = df.apply(
-            lambda row: behavioral_affinity_score(row, interactions),
+            lambda row: behavioral_affinity_score(row, interactions, user),
             axis=1,
         )
         df["final_score"] = (
@@ -214,7 +253,7 @@ def rank_products_variant(user, products_df, config, interactions, variant):
         df = df.sort_values("final_score", ascending=False)
         return df[zero_party_df.columns.tolist() + ["behavioral_score"]]
 
-    hybrid = _attach_behavioral_scores(zero_party_df, interactions)
+    hybrid = _attach_behavioral_scores(zero_party_df, interactions, user)
     hybrid["final_score"] = hybrid["final_score"] * 0.70 + hybrid["behavioral_score"] * 0.30
     hybrid = hybrid.sort_values("final_score", ascending=False)
     return hybrid
@@ -222,9 +261,9 @@ def rank_products_variant(user, products_df, config, interactions, variant):
 
 def build_dynamic_reason(user, product_row, variant, interactions):
     reasons = []
-    behavioral = behavioral_affinity_score(product_row, interactions)
+    behavioral = behavioral_affinity_score(product_row, interactions, user)
     if behavioral >= 0.2:
-        reasons.append("boosted by your recent views/clicks in this session")
+        reasons.append("boosted by session activity and 1st-party purchase/dwell history")
     if product_row.get("interest_score", 0) > 0:
         reasons.append("matches declared sport interests (0-party)")
     if product_row.get("browser_score", 0) > 0:
@@ -244,26 +283,49 @@ def build_dynamic_reason(user, product_row, variant, interactions):
 # ---------------------------------------------------------------------------
 
 def compute_propensity_score(user, interactions, top_product):
-    score = 0.32
+    first_party = get_mock_1st_party_data(user.get("user_id", 0))
+    score = 0.22
+
     if user.get("consent_marketing"):
-        score += 0.12
+        score += 0.10
     if user.get("email_opt_in"):
-        score += 0.08
+        score += 0.06
 
     total_clicks = sum(interactions.get("clicks", {}).values())
     total_views = sum(interactions.get("views", {}).values())
-    score += min(0.28, total_clicks * 0.09)
-    score += min(0.12, total_views * 0.03)
+    score += min(0.22, total_clicks * 0.09)
+    score += min(0.10, total_views * 0.03)
+
+    email = first_party.get("email_engagement", {})
+    score += min(0.12, email.get("opens_30d", 0) * 0.01)
+    score += min(0.10, email.get("clicks_30d", 0) * 0.04)
+
+    purchases = first_party.get("prior_purchases", [])
+    if purchases:
+        recency_boost = sum(0.06 for p in purchases if p["days_ago"] <= 45)
+        score += min(0.18, recency_boost)
+
+    dwell = first_party.get("high_dwell_categories", [])
+    if dwell:
+        score += min(0.12, sum(d["page_views"] for d in dwell) * 0.008)
 
     if top_product is not None:
         if interest_match_score(user.get("interests", []), top_product["category"]) > 0:
-            score += 0.18
+            score += 0.14
         if top_product.get("is_on_sale"):
-            score += 0.05
+            score += 0.04
+        score += _tag_overlap_score(
+            top_product.get("behavioral_tags", []),
+            first_party.get("affinity_tags", []),
+        ) * 0.12
+        if first_party.get("replenishment_due_skus"):
+            parent = top_product.get("parent_sku") or top_product.get("sku")
+            if parent in first_party["replenishment_due_skus"]:
+                score += 0.10
 
     lifecycle = user.get("lifecycle_stage", "")
     if lifecycle in ("Repeat Runner", "High-Value Member", "Active Member"):
-        score += 0.08
+        score += 0.06
     if lifecycle == "Lapsed Runner":
         score -= 0.05
 
@@ -290,6 +352,7 @@ def evaluate_push_notification(user, interactions, top_product, threshold=PROPEN
         "queued_at": datetime.now().isoformat(timespec="seconds"),
     }
 
+    first_party = get_mock_1st_party_data(user.get("user_id", 0))
     log_entry = {
         "timestamp": datetime.now().strftime("%H:%M:%S"),
         "channel": "Push",
@@ -300,6 +363,8 @@ def evaluate_push_notification(user, interactions, top_product, threshold=PROPEN
         "lifecycle": user.get("lifecycle_stage"),
         "session_views": int(sum(interactions.get("views", {}).values())),
         "session_clicks": int(sum(interactions.get("clicks", {}).values())),
+        "prior_purchases": len(first_party.get("prior_purchases", [])),
+        "high_dwell_categories": len(first_party.get("high_dwell_categories", [])),
         "decision": "QUEUED" if queued else "SUPPRESSED",
         "note": base_decision["decision_reason"],
     }
