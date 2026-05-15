@@ -67,7 +67,7 @@ with st.sidebar:
     st.subheader("Experiment Controls")
     active_variant = st.session_state.get("rec_variant", REC_VARIANT_HYBRID)
     st.markdown(f"**Active variant:** {_variant_label(active_variant)}")
-    st.caption("Change variant in the command bar below the KPI metrics (main panel).")
+    st.caption("Use the **horizontal radio buttons** in the main panel (below KPI metrics).")
     st.caption("Ranking updates instantly when you view or click products in Recommendations.")
     with st.expander("MarTech Backend: Propensity Logs"):
         propensity_logs = st.session_state.get("propensity_logs", [])
@@ -233,6 +233,10 @@ with tab1:
 
 with tab2:
     st.header("Personalized Recommendations")
+    st.info(
+        f"Ranking model: **{_variant_label(st.session_state.get('rec_variant', REC_VARIANT_HYBRID))}** "
+        "— change via the radio buttons below the KPI row on the home view."
+    )
 
     if "config" not in st.session_state:
         st.info("Configure the member strategy first in Tab 1.")

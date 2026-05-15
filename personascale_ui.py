@@ -76,6 +76,31 @@ def inject_enterprise_css() -> None:
             text-transform: uppercase;
             letter-spacing: 0.05em;
           }
+          .ps-variant-panel {
+            background: var(--ps-card);
+            border: 1px solid var(--ps-border);
+            border-radius: 12px;
+            padding: 0.85rem 1.1rem 0.65rem;
+            margin: 0.5rem 0 0.85rem 0;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+          }
+          .ps-variant-panel h4 {
+            margin: 0 0 0.35rem 0;
+            color: var(--ps-text);
+            font-size: 0.95rem;
+          }
+          [data-testid="stAppViewContainer"] .main div[data-testid="stRadio"] {
+            pointer-events: auto !important;
+          }
+          [data-testid="stAppViewContainer"] .main div[data-testid="stRadio"] label {
+            color: var(--ps-text) !important;
+            cursor: pointer !important;
+            font-weight: 600 !important;
+            padding-right: 1.25rem !important;
+          }
+          [data-testid="stAppViewContainer"] .main div[data-testid="stRadio"] [role="radiogroup"] {
+            gap: 1.5rem !important;
+          }
           .block-container {
             padding-top: 1.25rem;
             padding-bottom: 1rem;
@@ -264,40 +289,49 @@ def _variant_label(value: str) -> str:
     return "Variant B — Hybrid Model"
 
 
-def render_variant_control() -> str:
-    """Single variant picker (selectbox avoids sidebar radio CSS issues)."""
+def render_variant_radio_panel() -> str:
+    """Full-width horizontal radio — main panel only (sidebar CSS cannot block clicks)."""
     from martech_engine import REC_VARIANT_BEHAVIORAL, REC_VARIANT_HYBRID
 
     options = [REC_VARIANT_BEHAVIORAL, REC_VARIANT_HYBRID]
     if "rec_variant" not in st.session_state or st.session_state["rec_variant"] not in options:
         st.session_state["rec_variant"] = REC_VARIANT_HYBRID
 
-    return st.selectbox(
+    st.markdown(
+        """
+        <div class="ps-variant-panel">
+          <h4>Recommendation Variant (A/B Model)</h4>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return st.radio(
         "Recommendation Variant",
         options=options,
         format_func=_variant_label,
         key="rec_variant",
-        help="Variant A uses session behavior; Variant B blends 0-party ranking with behavioral signals.",
+        horizontal=True,
+        help="Variant A: session behavioral ranking. Variant B: hybrid 0-party + behavioral blend.",
+        label_visibility="collapsed",
     )
 
 
 def render_command_control_bar() -> None:
-    bar = st.columns([2.4, 2.2, 2.2, 5.2])
+    render_variant_radio_panel()
+    bar = st.columns([3, 3, 6])
     with bar[0]:
-        render_variant_control()
+        st.caption("Active engine")
+        st.markdown(f"**{_variant_label(st.session_state.get('rec_variant', ''))}**")
     with bar[1]:
-        st.caption("Engine mode")
-        st.write(_variant_label(st.session_state.get("rec_variant", "")))
-    with bar[2]:
         interactions = st.session_state.get("interactions", {})
         st.caption("Session signals")
         st.write(
             f"{sum(interactions.get('views', {}).values())} views · "
             f"{sum(interactions.get('clicks', {}).values())} clicks"
         )
-    with bar[3]:
-        st.caption("Orchestration")
-        st.write("Select variant here — works when the sidebar is collapsed on mobile.")
+    with bar[2]:
+        st.caption("How to use")
+        st.write("Select a variant above, run simulation in **Member & Strategy**, then open **Recommendations**.")
 
 
 def render_kpi_shelf(session_state) -> None:
