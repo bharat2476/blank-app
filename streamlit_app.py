@@ -9,10 +9,21 @@ from ranking import (
     lifecycle_strategy,
     martech_email_decision,
     privacy_safe_user,
-    rank_products,
     ribbon_products,
     simulate_experiment,
     shoe_email_status
+)
+from martech_engine import (
+    REC_VARIANT_BEHAVIORAL,
+    REC_VARIANT_HYBRID,
+    build_dynamic_reason,
+    evaluate_push_notification,
+    init_martech_session,
+    log_propensity_evaluation,
+    process_member_signals,
+    rank_products_variant,
+    record_interaction,
+    reset_martech_session,
 )
 from auction import run_auction
 from metrics import (
@@ -24,6 +35,34 @@ from metrics import (
 )
 
 st.set_page_config(page_title="Personalization & Ad Targeting Simulator", layout="wide")
+
+init_martech_session(st.session_state)
+
+
+def _on_product_view(product_id, category):
+    record_interaction(st.session_state, product_id, category, "view")
+
+
+def _on_product_click(product_id, category):
+    record_interaction(st.session_state, product_id, category, "click")
+
+
+with st.sidebar:
+    st.subheader("Experiment Controls")
+    st.radio(
+        "Recommendation Variant",
+        [REC_VARIANT_BEHAVIORAL, REC_VARIANT_HYBRID],
+        index=1,
+        key="rec_variant",
+        help="Variant A ranks from session behavior; Variant B blends 0-party and behavioral signals.",
+    )
+    st.caption("Ranking updates instantly when you view or click products in Recommendations.")
+    with st.expander("MarTech Backend: Propensity Logs"):
+        propensity_logs = st.session_state.get("propensity_logs", [])
+        if propensity_logs:
+            st.dataframe(pd.DataFrame(propensity_logs), use_container_width=True, hide_index=True)
+        else:
+            st.caption("No propensity evaluations yet. Open Marketing & Ads after simulating.")
 
 st.title("Personalization & Ad Targeting Simulator")
 st.caption(
@@ -143,9 +182,16 @@ with tab1:
     })
 
     if st.button("Run Simulation"):
-        personalized_user = privacy_safe_user(selected_user, privacy_mode)
+        reset_martech_session(st.session_state)
+        gold_profile, personalized_user = process_member_signals(
+            selected_user,
+            st.session_state["interactions"],
+            privacy_mode,
+            privacy_safe_user,
+        )
         st.session_state["user"] = personalized_user
         st.session_state["raw_user"] = selected_user
+        st.session_state["gold_profile"] = gold_profile
         st.session_state["config"] = {
             "user_segment": user_segment,
             "roas_fairness": roas_fairness,
@@ -154,6 +200,7 @@ with tab1:
             "product_type_filter": product_type_filter,
             "privacy_mode": privacy_mode,
             "enforce_diversity": enforce_diversity,
+            "rec_variant": st.session_state.get("rec_variant", REC_VARIANT_HYBRID),
             "seed": selected_user_id + explore_exploit
         }
 
@@ -172,11 +219,15 @@ with tab2:
         user = st.session_state["user"]
         config = st.session_state["config"]
         products_df = st.session_state["products"]
+        rec_variant = st.session_state.get("rec_variant", config.get("rec_variant", REC_VARIANT_HYBRID))
+        interactions = st.session_state["interactions"]
 
-        ranked_df = rank_products(
+        ranked_df = rank_products_variant(
             user,
             products_df,
-            config
+            config,
+            interactions,
+            rec_variant,
         )
         filtered_ranked_df = ranked_df.copy()
         if config["audience_filter"] != "All":
@@ -192,6 +243,14 @@ with tab2:
             f"Privacy mode: {config['privacy_mode']} | Interests: {user['interests']} | "
             f"Browser: {user['browser_signal']} | Apps: {user['app_signals']}"
         )
+        st.caption(
+            f"Active variant: **{rec_variant}** | "
+            f"Session views: {sum(interactions.get('views', {}).values())} | "
+            f"Session clicks: {sum(interactions.get('clicks', {}).values())}"
+        )
+        if st.session_state.get("gold_profile"):
+            with st.expander("Semantic profile (Bronze → Silver → Gold)", expanded=False):
+                st.json(st.session_state["gold_profile"])
         st.info(lifecycle_strategy(user))
 
         ribbon_cols = st.columns(2)
@@ -211,6 +270,36 @@ with tab2:
             )
 
         filtered_ranked_df = add_recommendation_explanations(filtered_ranked_df, user)
+
+        st.subheader("Live Product Grid")
+        st.caption("View or click cards to re-rank instantly via Streamlit session reactivity.")
+        grid_df = filtered_ranked_df.head(6)
+        grid_cols = st.columns(3)
+        for grid_index, (_, product_row) in enumerate(grid_df.iterrows()):
+            with grid_cols[grid_index % 3]:
+                st.markdown(f"**{product_row['name']}**")
+                st.write(
+                    f"${product_row['price']:.2f} · {product_row['category']} · "
+                    f"Score {product_row['final_score']:.3f}"
+                )
+                action_cols = st.columns(2)
+                with action_cols[0]:
+                    st.button(
+                        "View",
+                        key=f"view_{product_row['product_id']}",
+                        on_click=_on_product_view,
+                        args=(int(product_row["product_id"]), product_row["category"]),
+                    )
+                with action_cols[1]:
+                    st.button(
+                        "Click",
+                        key=f"click_{product_row['product_id']}",
+                        on_click=_on_product_click,
+                        args=(int(product_row["product_id"]), product_row["category"]),
+                    )
+                st.caption(
+                    build_dynamic_reason(user, product_row, rec_variant, interactions)
+                )
 
         st.subheader("Recommended Products with Explainability")
         st.dataframe(
@@ -295,7 +384,10 @@ with tab3:
         config = st.session_state["config"]
         ranked_df = st.session_state.get("ranked_df")
         top_product = ranked_df.iloc[0] if ranked_df is not None and not ranked_df.empty else None
+        interactions = st.session_state["interactions"]
         email_decision = martech_email_decision(user, top_product)
+        push_eval = evaluate_push_notification(user, interactions, top_product)
+        log_propensity_evaluation(st.session_state, push_eval)
 
         st.subheader("Lifecycle Email Decision")
         st.info(shoe_email_status(user))
@@ -310,6 +402,28 @@ with tab3:
             "Rule: if the member just bought footwear, suppress shoe emails. "
             "Running shoe emails resume when the member reaches 5.5 months since last shoe purchase."
         )
+
+        st.subheader("Push Notification (Propensity-Gated)")
+        push_cols = st.columns(4)
+        push_cols[0].metric("Propensity Score", f"{push_eval['score']:.2f}")
+        push_cols[1].metric("Threshold", f">{push_eval['threshold']:.2f}")
+        push_cols[2].metric("Push Status", "Queued" if push_eval["queued"] else "Suppressed")
+        push_cols[3].metric("Queue Size", len(st.session_state.get("notification_queue", [])))
+        if push_eval["queued"]:
+            st.success(
+                f"Queued: {push_eval['notification']['title']} — {push_eval['notification']['body']}"
+            )
+        else:
+            st.warning(
+                "Push suppressed: propensity below threshold, lifecycle rule, or channel "
+                f"({user.get('channel_preference')}) does not include Push."
+            )
+        if st.session_state.get("notification_queue"):
+            st.dataframe(
+                pd.DataFrame(st.session_state["notification_queue"]),
+                use_container_width=True,
+                hide_index=True,
+            )
 
         auction_df = run_auction(
             user,
