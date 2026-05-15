@@ -6,6 +6,9 @@ browser intent, app signals, customer lifecycle, and merchandising goals can
 work together to recommend products and decide when marketing emails should be
 suppressed or reactivated.
 
+Core UI logic lives in `streamlit_app.py`. MarTech signal processing, hybrid ranking,
+and propensity-gated notifications are encapsulated in `martech_engine.py`.
+
 ## Demo scope
 
 - 500 generated products across sport categories, audiences, and product
@@ -31,6 +34,21 @@ suppressed or reactivated.
 - Trust & Safety, privacy guardrails, reference architecture, and product pain
   points to discuss in interviews and roadmap conversations.
 - Architecture Diagram tab to visualize end-to-end product workflow.
+- **MarTech engine** (`martech_engine.py`): mock Bronze → Silver → Gold medallion layers for 0-party and session behavioral signals.
+- **Hybrid recommendations**: sidebar A/B variant (behavioral-only vs. 0-party + behavioral blend) with instant re-ranking on View/Click.
+- **Live product grid** with per-card “Why am I seeing this?” captions driven by current member state.
+- **Propensity-scored push notifications**: queue only when score > 0.75; inspect decisions in **MarTech Backend: Propensity Logs** (sidebar).
+
+## Project structure
+
+| File | Purpose |
+|------|---------|
+| `streamlit_app.py` | Streamlit UI, tabs, session state, sidebar experiment controls |
+| `martech_engine.py` | Medallion layers, hybrid ranking, interaction tracking, propensity scoring |
+| `ranking.py` | Base 0-party ranking, lifecycle email rules, A/B simulation helpers |
+| `data_generator.py` | Synthetic members, products, sellers, and ad bids |
+| `auction.py` | Sponsored product auction scoring |
+| `metrics.py` | CTR, conversion, ROAS, and diversity metrics |
 
 ## Current app tabs
 
@@ -41,6 +59,19 @@ suppressed or reactivated.
 5. A/B Testing Lab
 6. Trust & Safety
 7. Architecture Diagram
+
+## Sidebar controls
+
+- **Recommendation Variant** — Variant A (behavioral-only) or Variant B (hybrid: 70% base ranker + 30% session behavioral).
+- **MarTech Backend: Propensity Logs** — expandable log of push propensity evaluations (score, threshold, queued vs. suppressed).
+
+## Quick start (demo flow)
+
+1. Open **Member & Strategy**, pick a member, set privacy and sliders, then click **Run Simulation**.
+2. Open **Recommendations** — use **View** / **Click** on the live product grid; ranking updates on each interaction without resetting the app.
+3. Toggle **Recommendation Variant** in the sidebar to compare behavioral-only vs. hybrid ranking.
+4. Open **Marketing & Ads** — review email rules and propensity-gated push (interact in Recommendations first to raise propensity above 0.75).
+5. Explore **Portfolio Metrics**, **A/B Testing Lab**, **Trust & Safety**, and **Architecture Diagram** as needed.
 
 ## Interview framing (FAANG-style)
 
@@ -64,6 +95,27 @@ suppressed or reactivated.
 - Customer type
 - Member gender
 - Privacy preference (how much the user wants to share)
+
+## MarTech engine (medallion + propensity)
+
+### Signal layers (mock semantic pipeline)
+
+1. **Bronze** — raw 0-party inputs: interests, browser signal, segment, consent flags, app signals.
+2. **Silver** — session behavioral aggregates: product views/clicks and category engagement.
+3. **Gold** — unified member profile passed into ranking and Martech decisions (visible under **Semantic profile** on the Recommendations tab).
+
+### Recommendation variants
+
+| Variant | Behavior |
+|---------|----------|
+| **Variant A: Behavioral-Only** | Ranks primarily from session views/clicks plus popularity, trend, and recency. |
+| **Variant B: Hybrid Model** | Blends the existing 0-party `rank_products()` score with `behavioral_score` (70% / 30%). |
+
+Session interactions update `behavioral_score` per product and category in real time via Streamlit reruns.
+
+### Push propensity (Marketing & Ads)
+
+`propensity_score` (0.0–1.0) combines consent, session engagement, top-product relevance, and lifecycle stage. Push notifications are **queued only when score > 0.75** and lifecycle/channel gates allow. Email rules in `ranking.py` still apply separately.
 
 ## Scoring logic
 
@@ -92,6 +144,12 @@ suppressed or reactivated.
   - `exploit_weight = 1 - explore_weight`
   - `lifecycle_boost = 0.12` for repeat members, else `0.0`
   - `discovery_boost = 0.12` for new members, else `0.0`
+
+**Hybrid variant (Variant B)** additionally applies:
+
+`final_score = base_final_score * 0.70 + behavioral_score * 0.30`
+
+where `behavioral_score` is derived from per-product and per-category session views and clicks.
 
 ### Marketing & Ads tab scoring
 
@@ -185,6 +243,14 @@ Anyone can open and view the deployed prototype using this public URL:
 
 No local setup is required for viewing. Open the link in any browser.
 
+After pushing changes to GitHub, Streamlit Community Cloud redeploys from `main` (usually within a few minutes). If the live app looks stale:
+
+1. Confirm the latest commit is on `origin/main` (includes `martech_engine.py`).
+2. Open [share.streamlit.io](https://share.streamlit.io) → your app → verify **Repository** `bharat2476/blank-app`, **Branch** `main`, **Main file** `streamlit_app.py`.
+3. Check deploy logs for errors, then **Reboot app** and hard-refresh the URL (Ctrl+F5).
+
+**Signs the new build is live:** left sidebar shows **Experiment Controls** and **Recommendation Variant**; Recommendations tab includes **Live Product Grid**; Marketing & Ads includes **Push Notification (Propensity-Gated)**.
+
 ## How to run it on your own machine
 
 1. Install the requirements
@@ -197,4 +263,12 @@ No local setup is required for viewing. Open the link in any browser.
 
    ```
    $ streamlit run streamlit_app.py --server.enableCORS false --server.enableXsrfProtection false
+   ```
+
+   The app serves on port **8501** by default.
+
+3. Verify imports (optional)
+
+   ```
+   $ python -c "import streamlit_app"
    ```
