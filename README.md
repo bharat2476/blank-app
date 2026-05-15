@@ -43,12 +43,102 @@ and propensity-gated notifications are encapsulated in `martech_engine.py`.
 
 | File | Purpose |
 |------|---------|
-| `streamlit_app.py` | Streamlit UI, tabs, session state, sidebar experiment controls |
+| `streamlit_app.py` | PersonaScale AI UI, tabs, session state, command-bar variant controls |
+| `personascale_ui.py` | Enterprise CSS, KPI shelf, product cards, engine telemetry |
 | `martech_engine.py` | Medallion layers, hybrid ranking, interaction tracking, propensity scoring |
+| `seed_data.py` | Product registry (SKU catalog) and simulated 1st-party event logs |
 | `ranking.py` | Base 0-party ranking, lifecycle email rules, A/B simulation helpers |
-| `data_generator.py` | Synthetic members, products, sellers, and ad bids |
+| `data_generator.py` | Marketplace bootstrap via `initialize_marketplace()` |
 | `auction.py` | Sponsored product auction scoring |
 | `metrics.py` | CTR, conversion, ROAS, and diversity metrics |
+
+## Production architecture blueprint (scalable infra)
+
+This prototype (`PersonaScale AI`) simulates the product surface in Streamlit. The blueprint below is the **target production architecture** for scaling real-time personalization, feature serving, and propensity-gated push orchestration.
+
+### End-to-end flow
+
+```
+[User Browser / Streamlit App]
+       │
+       ▼ (Async Clickstream)
+[Apache Kafka / Google Pub/Sub]
+       │
+       ▼ (Stream Processing Engine)
+[Apache Flink / Vertex AI Feature Store] <───> [Redis Cache (User States)]
+       │
+       ▼ (Inference Engine Model)
+[TensorFlow Two-Tower Recommendation Model]
+       │
+       ▼ (If Propensity Threshold > 0.75)
+[Firebase Cloud Messaging Engine] ───> (Hyper-Personalized Real-Time Push Notification)
+```
+
+```mermaid
+flowchart TB
+  subgraph client [Experience Layer]
+    UI[User Browser / Streamlit App]
+  end
+  subgraph ingest [Event Ingestion]
+    CS[Async Clickstream]
+    K[(Apache Kafka / Google Pub/Sub)]
+  end
+  subgraph features [Real-Time Features]
+    FL[Apache Flink / Vertex AI Feature Store]
+    R[(Redis Cache - User States)]
+  end
+  subgraph ml [Inference]
+    TT[TensorFlow Two-Tower Recommendation Model]
+  end
+  subgraph martech [Activation]
+    PG{Propensity > 0.75?}
+    FCM[Firebase Cloud Messaging Engine]
+    PUSH[Hyper-Personalized Push Notification]
+  end
+  UI --> CS --> K --> FL
+  FL <--> R
+  FL --> TT --> PG
+  PG -->|Yes| FCM --> PUSH
+  PG -->|No| SUPPRESS[Suppress / Holdout]
+```
+
+### Layer responsibilities
+
+| Layer | Production service | Role in PersonaScale |
+|-------|-------------------|----------------------|
+| Experience | Streamlit → Web/Mobile app | Member strategy UI, recommendation shelf, telemetry (demo: `streamlit_app.py`, `personascale_ui.py`) |
+| Clickstream | Kafka / Pub/Sub | Durable async events: views, clicks, PDP dwell, cart signals |
+| Stream processing | Flink / Dataflow + Feature Store | Bronze → Silver → Gold feature materialization, session aggregation |
+| Online state | Redis | Sub-10ms user profile, frequency caps, last-N interactions, propensity inputs |
+| Ranking | Two-tower TF model | Hybrid retrieval: 0-party tower + behavioral tower (demo: `rank_products_variant`) |
+| Propensity gate | Rules + ML calibrator | Score 0.0–1.0; activate push only above **0.75** (demo: `martech_engine.compute_propensity_score`) |
+| Activation | Firebase Cloud Messaging | Real-time push with consent, channel, and lifecycle guardrails |
+
+### Demo → production mapping
+
+| Prototype module | Production equivalent |
+|------------------|----------------------|
+| `seed_data.get_mock_1st_party_data()` | Feature Store + CRM/CDP purchase and engagement history |
+| `martech_engine` medallion layers | Flink jobs writing to BigQuery / Feature Store entities |
+| `st.session_state["interactions"]` | Kafka topic `clickstream.v1` consumed into Redis user state |
+| `rank_products_variant` (A/B) | Two-tower serving with experiment flags (LaunchDarkly / Vertex Experiments) |
+| Propensity logs expander | Observability: Datadog + BigQuery audit table for decision traces |
+| Notification queue (session) | FCM topic sends with idempotency keys and rate limiting |
+
+### Scalability and reliability patterns
+
+- **Ingest:** partition Kafka/Pub/Sub by `member_id`; at-least-once delivery with dedupe keys on `(member_id, event_id)`.
+- **Features:** Flink windowed aggregations (1m / 1h / 7d) into Vertex AI Feature Store; Redis as online serving cache with TTL aligned to session length.
+- **Inference:** two-tower batch embeddings offline; online ANN retrieval (e.g., Vertex Matching Engine) + lightweight rerank for business rules (margin, inventory, consent).
+- **Propensity:** separate calibrator model or logistic layer on top of rank score; hard guardrails for consent, frequency cap, and channel preference before FCM.
+- **Push:** async worker pool reading “eligible notification” topic; FCM with collapse keys, quiet hours, and holdout buckets for incrementality measurement.
+- **SLOs (targets):** clickstream ingest p99 < 2s; feature freshness < 60s; rank + propensity p99 < 150ms; push dispatch < 5s from trigger event.
+
+### Security and privacy
+
+- Consent flags gate all behavioral features before Feature Store write.
+- PII tokenization at ingest; Redis keys use hashed `member_id`.
+- FCM payloads contain no raw health or precise location data; use category-level affinity only.
 
 ## Current app tabs
 
@@ -69,7 +159,7 @@ and propensity-gated notifications are encapsulated in `martech_engine.py`.
 
 1. Open **Member & Strategy**, pick a member, set privacy and sliders, then click **Run Simulation**.
 2. Open **Recommendations** — use **View** / **Click** on the live product grid; ranking updates on each interaction without resetting the app.
-3. Toggle **Recommendation Variant** in the sidebar to compare behavioral-only vs. hybrid ranking.
+3. Toggle **Recommendation Variant** (horizontal radios below KPI metrics) to compare behavioral-only vs. hybrid ranking.
 4. Open **Marketing & Ads** — review email rules and propensity-gated push (interact in Recommendations first to raise propensity above 0.75).
 5. Explore **Portfolio Metrics**, **A/B Testing Lab**, **Trust & Safety**, and **Architecture Diagram** as needed.
 
@@ -249,7 +339,7 @@ After pushing changes to GitHub, Streamlit Community Cloud redeploys from `main`
 2. Open [share.streamlit.io](https://share.streamlit.io) → your app → verify **Repository** `bharat2476/blank-app`, **Branch** `main`, **Main file** `streamlit_app.py`.
 3. Check deploy logs for errors, then **Reboot app** and hard-refresh the URL (Ctrl+F5).
 
-**Signs the new build is live:** left sidebar shows **Experiment Controls** and **Recommendation Variant**; Recommendations tab includes **Live Product Grid**; Marketing & Ads includes **Push Notification (Propensity-Gated)**.
+**Signs the new build is live:** **PersonaScale AI** header and KPI shelf; **Recommendation Variant** horizontal radios below KPIs; Recommendations tab includes **Retail Recommendation Shelf**; Marketing & Ads includes **Push Notification (Propensity-Gated)**.
 
 ## How to run it on your own machine
 
@@ -259,13 +349,13 @@ After pushing changes to GitHub, Streamlit Community Cloud redeploys from `main`
    $ pip install -r requirements.txt
    ```
 
-2. Run the app
+2. Run the app (Python/Streamlit — not `npm`)
 
    ```
-   $ streamlit run streamlit_app.py --server.enableCORS false --server.enableXsrfProtection false
+   $ python -m streamlit run streamlit_app.py --server.enableCORS false --server.enableXsrfProtection false
    ```
 
-   The app serves on port **8501** by default.
+   Open **http://localhost:8501** in your browser. Do not use `npm run dev` (that starts a separate Node monorepo on port 3001).
 
 3. Verify imports (optional)
 
